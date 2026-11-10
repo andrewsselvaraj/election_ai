@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -37,18 +38,25 @@ public class ConstituencyResultService {
 
     private final ConstituencyService constituencies;
     private final Form7AClient form7a;
+    private final DataSnapshotStore snapshots;
     private final int timeoutMillis;
     private final Map<Integer, ConstituencyResult> cache = new ConcurrentHashMap<>();
 
     public ConstituencyResultService(
             ConstituencyService constituencies,
             Form7AClient form7a,
+            DataSnapshotStore snapshots,
             @Value("${form20.timeout-millis:30000}") int timeoutMillis) {
         this.constituencies = constituencies;
         this.form7a = form7a;
+        this.snapshots = snapshots;
         this.timeoutMillis = timeoutMillis;
     }
 
+    /**
+     * The saved copy of the official data is used when there is one; {@code refresh} reads the
+     * live sites instead, falling back to the saved copy if they cannot be reached.
+     */
     public ConstituencyResult result(int acNumber, boolean refresh) throws IOException {
         if (!refresh) {
             ConstituencyResult cached = cache.get(acNumber);
@@ -58,7 +66,39 @@ public class ConstituencyResultService {
         }
         Constituency c = constituencies.find(acNumber)
                 .orElseThrow(() -> new NoSuchElementException("No constituency numbered " + acNumber));
+        Optional<DataSnapshotStore.Snapshot> saved = snapshots.find(acNumber);
+        ConstituencyResult result;
+        if (saved.isPresent() && !refresh) {
+            result = fromSnapshot(c, saved.get());
+        } else {
+            try {
+                result = live(c);
+            } catch (Form20PdfParser.NoTextException e) {
+                throw e;
+            } catch (IOException e) {
+                if (saved.isEmpty()) {
+                    throw e;
+                }
+                log.warn("Live sites unreachable for AC {} ({}); using saved data", acNumber, e.toString());
+                result = fromSnapshot(c, saved.get());
+            }
+        }
+        cache.put(acNumber, result);
+        return result;
+    }
 
+    private ConstituencyResult fromSnapshot(Constituency c, DataSnapshotStore.Snapshot s) throws IOException {
+        if (s.form20() == null) {
+            if (DataSnapshotStore.SCANNED.equals(s.form20Error())) {
+                throw new Form20PdfParser.NoTextException("This Form 20 PDF is a scanned image with no text layer");
+            }
+            throw new IOException(s.form20Error());
+        }
+        return build(c, s.form20(), s.form7a(), s.form7aError());
+    }
+
+    private ConstituencyResult live(Constituency c) throws IOException {
+        int acNumber = c.number();
         // Form 7A first: its candidate count tells the parser how many vote columns to expect.
         Form7AClient.Result candidates = null;
         String form7aError = null;
@@ -77,10 +117,7 @@ public class ConstituencyResultService {
                 .execute()
                 .bodyAsBytes();
         Form20Sheet sheet = Form20PdfParser.parse(pdf, candidates == null ? null : candidates.candidates().size());
-
-        ConstituencyResult result = build(c, sheet, candidates, form7aError);
-        cache.put(acNumber, result);
-        return result;
+        return build(c, sheet, candidates, form7aError);
     }
 
     /**

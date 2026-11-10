@@ -23,7 +23,8 @@ class PollingAreaServiceTest {
     private static ConstituencyResult form20() throws Exception {
         var sheet = Form20PdfParser.parse(new ClassPathResource("form20/AC001.pdf").getContentAsByteArray());
         var service = new ConstituencyResultService(new ConstituencyService("http://unused", 1000),
-                new Form7AClient("http://unused", 1000), 1000);
+                new Form7AClient("http://unused", 1000),
+                new DataSnapshotStore(tools.jackson.databind.json.JsonMapper.builder().build(), "no-data/"), 1000);
         return service.build(GUMMIDIPOONDI, sheet, null, "offline");
     }
 

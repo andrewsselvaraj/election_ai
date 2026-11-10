@@ -32,7 +32,8 @@ class ConstituencyResultServiceTest {
 
     private static ConstituencyResultService service() {
         return new ConstituencyResultService(new ConstituencyService("http://unused", 1000),
-                new Form7AClient("http://unused", 1000), 1000);
+                new Form7AClient("http://unused", 1000),
+                new DataSnapshotStore(tools.jackson.databind.json.JsonMapper.builder().build(), "no-data/"), 1000);
     }
 
     @Test

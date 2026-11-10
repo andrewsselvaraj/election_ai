@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Joins a constituency's Form 20 votes (per polling station) with the official list of polling
@@ -26,30 +27,56 @@ public class PollingAreaService {
 
     private static final Logger log = LoggerFactory.getLogger(PollingAreaService.class);
 
+    private static final String SCANNED_LIST = "The polling station list PDF for this constituency is a scanned image, "
+            + "so its polling areas cannot be read; search works by polling station number only.";
+
     private final ConstituencyResultService results;
     private final PollingStationListClient lists;
+    private final DataSnapshotStore snapshots;
 
-    public PollingAreaService(ConstituencyResultService results, PollingStationListClient lists) {
+    public PollingAreaService(ConstituencyResultService results, PollingStationListClient lists,
+                              DataSnapshotStore snapshots) {
         this.results = results;
         this.lists = lists;
+        this.snapshots = snapshots;
     }
 
-    /** Form 20 problems (download, scanned PDF) are thrown; a missing station list only warns. */
+    /**
+     * Form 20 problems (download, scanned PDF) are thrown; a missing station list only warns.
+     * The saved copy of the station list is used unless {@code refresh} asks for the live one.
+     */
     public PollingAreaResult result(int acNumber, boolean refresh) throws IOException {
         ConstituencyResult form20 = results.result(acNumber, refresh);
+        Optional<DataSnapshotStore.Snapshot> saved = snapshots.find(acNumber);
+        if (saved.isPresent() && !refresh) {
+            return fromSnapshot(acNumber, form20, saved.get());
+        }
         PollingStationListClient.Fetched list = null;
         String listError = null;
         try {
             list = lists.fetch(acNumber, refresh);
         } catch (Form20PdfParser.NoTextException e) {
-            listError = "The polling station list PDF for this constituency is a scanned image, "
-                    + "so its polling areas cannot be read; search works by polling station number only.";
+            listError = SCANNED_LIST;
         } catch (IOException | RuntimeException e) {
+            if (saved.isPresent()) {
+                log.warn("Polling station list unreachable for AC {} ({}); using saved data", acNumber, e.toString());
+                return fromSnapshot(acNumber, form20, saved.get());
+            }
             log.warn("Polling station list failed for AC {}: {}", acNumber, e.toString());
             listError = "The polling station list could not be read (" + e.getMessage()
                     + "); search works by polling station number only.";
         }
         return join(acNumber, form20, list, listError);
+    }
+
+    private static PollingAreaResult fromSnapshot(int acNumber, ConstituencyResult form20, DataSnapshotStore.Snapshot s) {
+        if (s.pollingStations() != null) {
+            return join(acNumber, form20, new PollingStationListClient.Fetched(s.pollingStations(), s.pollingStationsUrl()), null);
+        }
+        String error = DataSnapshotStore.SCANNED.equals(s.pollingStationsError()) ? SCANNED_LIST
+                : "The polling station list could not be read (" + s.pollingStationsError()
+                  + "); search works by polling station number only.";
+        return join(acNumber, form20, null, error);
     }
 
     static PollingAreaResult join(int acNumber, ConstituencyResult form20, PollingStationListClient.Fetched list,
