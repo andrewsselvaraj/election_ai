@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${c.number() + '. ' + c.displayName() + ' – Form 20'}">Form 20</title>
+    <style>
+        :root {
+            --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6b7a;
+            --line: #e2e6eb; --accent: #0b6e4f; --accent-soft: #e6f3ee; --warn: #8a4b00; --warn-bg: #fff2df;
+            --err: #a4262c; --err-bg: #fde7e9; --win: #e6f3ee;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #12151a; --card: #1b2028; --text: #e6e9ee; --muted: #9aa5b3;
+                --line: #2c333d; --accent: #4cc39a; --accent-soft: #17332a; --warn: #f0b46a; --warn-bg: #3a2a14;
+                --err: #f1707b; --err-bg: #3b1a1d; --win: #17332a;
+            }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+               background: var(--bg); color: var(--text); line-height: 1.45; }
+        .wrap { max-width: 1400px; margin: 0 auto; padding: 0 16px; }
+        header { padding: 20px 0 8px; }
+        h1 { margin: 4px 0; font-size: 1.5rem; }
+        h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+        a { color: var(--accent); }
+        .meta { color: var(--muted); font-size: .875rem; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+        .btn { display: inline-block; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--accent);
+               color: var(--accent); text-decoration: none; font-size: .9rem; background: transparent; }
+        .btn.primary { background: var(--accent); color: #fff; }
+        .stats { display: flex; gap: 12px; flex-wrap: wrap; }
+        .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+        .stat b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+        .stat span { color: var(--muted); font-size: .8rem; }
+        .notice { border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: .9rem; }
+        .notice.warn { background: var(--warn-bg); color: var(--warn); }
+        .notice.err { background: var(--err-bg); color: var(--err); }
+        .notice ul { margin: 4px 0 0; padding-left: 18px; }
+        .table-box { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+                     overflow: auto; max-height: 75vh; }
+        table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+        th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right;
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+        th { background: var(--accent-soft); position: sticky; top: 0; z-index: 1; vertical-align: bottom; }
+        th.left, td.left { text-align: left; }
+        .cand-head { white-space: normal; min-width: 90px; max-width: 130px; text-align: center; font-weight: 600; }
+        .cand-head small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; }
+        .sticky-col { position: sticky; left: 0; background: var(--card); z-index: 2; text-align: center; }
+        th.sticky-col { background: var(--accent-soft); z-index: 3; }
+        tr.winner td { background: var(--win); font-weight: 600; }
+        td.win-col { background: var(--win); }
+        tfoot td { font-weight: 700; background: var(--accent-soft); position: sticky; bottom: 0; }
+        tfoot td.sticky-col { background: var(--accent-soft); }
+        .party-src { color: var(--muted); font-size: .72rem; }
+        .na { color: var(--muted); font-style: italic; }
+        .bad td { color: var(--err); }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <a th:href="@{/}">← All constituencies</a>
+        <h1 th:text="${c.number() + '. ' + c.displayName()}">1. Gummidipoondi</h1>
+        <div class="meta">
+            District <span th:text="${c.districtNo() + '. ' + c.districtName()}">1. TIRUVALLUR</span>
+            · Form 20 final result sheet, TN Legislative Assembly Election 2026
+            <span th:if="${r != null}"> · loaded <span th:text="${loadedAt}"></span></span>
+        </div>
+        <div class="actions">
+            <a class="btn" th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener">Original PDF ↗</a>
+            <a class="btn" th:if="${r != null}" th:href="@{/constituency/{ac}.csv(ac=${c.number()})}">Download CSV</a>
+            <a class="btn" th:if="${r != null}" th:href="@{/api/constituency/{ac}(ac=${c.number()})}">JSON</a>
+            <a class="btn" th:href="@{/constituency/{ac}(ac=${c.number()},refresh=true)}">Reload from source</a>
+        </div>
+    </header>
+
+    <div class="notice err" th:if="${error != null}" th:text="${error}">error</div>
+
+    <th:block th:if="${r != null}">
+        <div class="stats">
+            <div class="stat" th:if="${r.totalElectors() != null}">
+                <b th:text="${#numbers.formatInteger(r.totalElectors(), 1, 'COMMA')}">0</b><span>Electors</span></div>
+            <div class="stat" th:if="${r.grandTotal() != null}">
+                <b th:text="${#numbers.formatInteger(r.grandTotal().total(), 1, 'COMMA')}">0</b><span>Total votes polled</span></div>
+            <div class="stat" th:if="${r.grandTotal() != null and r.totalElectors() != null and r.totalElectors() > 0}">
+                <b th:text="${#numbers.formatDecimal(100.0 * r.grandTotal().total() / r.totalElectors(), 1, 2) + '%'}">0</b><span>Turnout</span></div>
+            <div class="stat"><b th:text="${r.pollingStations().size()}">0</b><span>Polling stations</span></div>
+            <div class="stat"><b th:text="${r.candidates().size()}">0</b><span>Candidates</span></div>
+        </div>
+
+        <div class="notice warn" th:if="${!r.warnings().isEmpty()}">
+            <b>Check these:</b>
+            <ul><li th:each="w : ${r.warnings()}" th:text="${w}">warning</li></ul>
+        </div>
+
+        <h2>Candidates</h2>
+        <div class="table-box" style="max-height:none">
+            <table>
+                <thead>
+                <tr>
+                    <th>Sl. No</th>
+                    <th class="left">Candidate</th>
+                    <th class="left">Party</th>
+                    <th class="left">Symbol</th>
+                    <th>EVM votes</th>
+                    <th>Postal votes</th>
+                    <th>Total votes</th>
+                    <th>% of valid</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="k : ${r.candidates()}" th:classappend="${k.winner()} ? 'winner'">
+                    <td th:text="${k.serial()}">1</td>
+                    <td class="left">
+                        <span th:text="${k.name()}">NAME</span>
+                        <span th:if="${k.winner()}"> ✓ won</span>
+                    </td>
+                    <td class="left">
+                        <span th:if="${k.party() != null}" th:text="${k.party()}">Party</span>
+                        <span th:if="${k.party() == null}" class="na">not available</span>
+                        <div class="party-src" th:if="${k.partySource() != null}" th:text="${'from ' + k.partySource()}"></div>
+                    </td>
+                    <td class="left" th:text="${k.symbol()}">symbol</td>
+                    <td th:text="${#numbers.formatInteger(k.evmVotes(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(k.postalVotes(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(k.totalVotes(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatDecimal(k.voteShare(), 1, 2)}">0</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2>Votes by polling station</h2>
+        <div class="table-box">
+            <table>
+                <thead>
+                <tr>
+                    <th class="sticky-col">Serial No.<br>of Polling<br>Station</th>
+                    <th class="cand-head" th:each="k : ${r.candidates()}">
+                        <span th:text="${k.name()}">NAME</span>
+                        <small th:text="${k.party() != null ? k.party() : 'party n/a'}">Party</small>
+                    </th>
+                    <th>Total valid<br>votes</th>
+                    <th>Rejected</th>
+                    <th>NOTA</th>
+                    <th>Total</th>
+                    <th>Tendered</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="p : ${r.pollingStations()}" th:classappend="${!p.votes().consistent()} ? 'bad'">
+                    <td class="sticky-col" th:text="${p.serialNo()}">1</td>
+                    <td th:each="v, s : ${p.votes().candidateVotes()}"
+                        th:classappend="${r.candidates()[s.index].winner()} ? 'win-col'"
+                        th:text="${v}">0</td>
+                    <td th:text="${p.votes().totalValid()}">0</td>
+                    <td th:text="${p.votes().rejected()}">0</td>
+                    <td th:text="${p.votes().nota()}">0</td>
+                    <td th:text="${p.votes().total()}">0</td>
+                    <td th:text="${p.votes().tendered()}">0</td>
+                </tr>
+                </tbody>
+                <tfoot>
+                <th:block th:each="label, s : ${ {'Total EVM', 'Postal ballot', 'Total polled'} }"
+                          th:with="row=${ {r.evmTotal(), r.postalTotal(), r.grandTotal()}[s.index] }">
+                <tr th:if="${row != null}">
+                    <td class="sticky-col left" th:text="${label}">Total</td>
+                    <td th:each="v : ${row.candidateVotes()}" th:text="${#numbers.formatInteger(v, 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(row.totalValid(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(row.rejected(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(row.nota(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(row.total(), 1, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatInteger(row.tendered(), 1, 'COMMA')}">0</td>
+                </tr>
+                </th:block>
+                </tfoot>
+            </table>
+        </div>
+        <p class="meta">
+            Votes are read from the Form 20 PDF. Form 20 does not print party names, so parties come from
+            the official list of contesting candidates (Form 7A) on
+            <a href="https://erolls.tn.gov.in/acwithcandidate_tnla2026/AC_List.aspx" target="_blank" rel="noopener">erolls.tn.gov.in</a>,
+            matched by ballot serial number.
+        </p>
+    </th:block>
+</div>
+</body>
+</html>
