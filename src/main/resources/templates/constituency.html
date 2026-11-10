@@ -69,6 +69,7 @@
             <span th:if="${r != null}"> · loaded <span th:text="${loadedAt}"></span></span>
         </div>
         <div class="actions">
+            <a class="btn primary" th:if="${r != null}" th:href="@{/constituency/{ac}/areas(ac=${c.number()})}">Search by polling area</a>
             <a class="btn" th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener">Original PDF ↗</a>
             <a class="btn" th:if="${r != null}" th:href="@{/constituency/{ac}.csv(ac=${c.number()})}">Download CSV</a>
             <a class="btn" th:if="${r != null}" th:href="@{/api/constituency/{ac}(ac=${c.number()})}">JSON</a>

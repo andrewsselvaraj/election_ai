@@ -91,6 +91,8 @@
                 <a th:href="@{/constituency/{ac}(ac=${c.number()})}"
                    title="Load polling-station votes from the Form 20 PDF">Form 20 PDF</a>
                 <a th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener" title="Open the original PDF">↗</a>
+                <a th:href="@{/constituency/{ac}/areas(ac=${c.number()})}"
+                   title="Find a street or village and see the votes at its polling station">Polling areas</a>
             </li>
         </ul>
     </section>

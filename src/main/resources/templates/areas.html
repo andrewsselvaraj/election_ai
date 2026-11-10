@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${c.number() + '. ' + c.displayName() + ' – votes by polling area'}">Votes by polling area</title>
+    <style>
+        :root {
+            --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6b7a;
+            --line: #e2e6eb; --accent: #0b6e4f; --accent-soft: #e6f3ee; --warn: #8a4b00; --warn-bg: #fff2df;
+            --err: #a4262c; --err-bg: #fde7e9; --mark: #fff0a8; --mark-text: #1d2330; --bar: #0b6e4f;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #12151a; --card: #1b2028; --text: #e6e9ee; --muted: #9aa5b3;
+                --line: #2c333d; --accent: #4cc39a; --accent-soft: #17332a; --warn: #f0b46a; --warn-bg: #3a2a14;
+                --err: #f1707b; --err-bg: #3b1a1d; --mark: #6b5a12; --mark-text: #fff; --bar: #4cc39a;
+            }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+               background: var(--bg); color: var(--text); line-height: 1.45; }
+        .wrap { max-width: 1300px; margin: 0 auto; padding: 0 16px 40px; }
+        header { padding: 20px 0 4px; }
+        h1 { margin: 4px 0; font-size: 1.5rem; }
+        h2 { font-size: 1.05rem; margin: 22px 0 8px; }
+        a { color: var(--accent); }
+        .meta { color: var(--muted); font-size: .875rem; }
+        .crumbs { display: flex; gap: 14px; flex-wrap: wrap; font-size: .9rem; }
+        .notice { border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: .9rem; }
+        .notice.warn { background: var(--warn-bg); color: var(--warn); }
+        .notice.err { background: var(--err-bg); color: var(--err); }
+        .notice ul { margin: 4px 0 0; padding-left: 18px; }
+        .search { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin: 14px 0; }
+        .search label { font-weight: 600; display: block; margin-bottom: 6px; }
+        .search input, .search select { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+                                         background: var(--bg); color: var(--text); }
+        .search input { width: 100%; font-size: 1.05rem; }
+        .search .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: .9rem; }
+        .picker { position: relative; max-width: 100%; }
+        .picker summary { cursor: pointer; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+                          background: var(--bg); list-style: none; max-width: 520px; overflow: hidden;
+                          text-overflow: ellipsis; white-space: nowrap; }
+        .picker summary::after { content: " ▾"; color: var(--muted); }
+        .picker[open] summary::after { content: " ▴"; }
+        .pick-list { position: absolute; z-index: 5; margin-top: 4px; background: var(--card); border: 1px solid var(--line);
+                     border-radius: 8px; padding: 8px; max-height: 340px; overflow: auto; min-width: 280px;
+                     max-width: calc(100vw - 32px); box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+        .pick-list label { display: flex; gap: 8px; align-items: flex-start; padding: 5px 4px; cursor: pointer; font-weight: 400; margin: 0; }
+        .pick-list label:hover { background: var(--accent-soft); border-radius: 6px; }
+        .pick-all { border-bottom: 1px solid var(--line); font-weight: 600 !important; }
+        .cand-col { text-align: right; white-space: normal; min-width: 90px; max-width: 140px; }
+        td.lead { background: var(--accent-soft); font-weight: 600; }
+        .hint { color: var(--muted); font-size: .82rem; margin-top: 6px; }
+        .summary { font-size: 1rem; margin: 6px 0 10px; }
+        .summary b { font-variant-numeric: tabular-nums; }
+        .table-box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+        th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+        th { background: var(--accent-soft); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .cands tr { cursor: pointer; }
+        .cands tr.sel td { background: var(--accent-soft); font-weight: 600; }
+        .bar { height: 8px; background: var(--bar); border-radius: 4px; min-width: 1px; }
+        .barcell { width: 30%; min-width: 80px; vertical-align: middle; }
+        .party { color: var(--muted); font-size: .78rem; }
+        .areas { max-width: 520px; }
+        .loc { max-width: 280px; }
+        mark { background: var(--mark); color: var(--mark-text); border-radius: 2px; padding: 0 1px; }
+        .na { color: var(--muted); font-style: italic; }
+        .more { margin: 8px 0; }
+        button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+        .stations-box { max-height: 70vh; }
+        @media (max-width: 700px) {
+            .loc { max-width: 160px; }
+            .barcell { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <div class="crumbs">
+            <a th:href="@{/}">← All constituencies</a>
+            <a th:href="@{/constituency/{ac}(ac=${c.number()})}">Full Form 20 result</a>
+        </div>
+        <h1 th:text="${c.number() + '. ' + c.displayName() + ' – votes by polling area'}">1. Gummidipoondi – votes by polling area</h1>
+        <div class="meta">
+            District <span th:text="${c.districtNo() + '. ' + c.districtName()}">1. TIRUVALLUR</span>
+            · TN Legislative Assembly Election 2026
+        </div>
+    </header>
+
+    <div class="notice err" th:if="${error != null}" th:text="${error}">error</div>
+
+    <th:block th:if="${a != null}">
+        <div class="notice warn" th:if="${!a.warnings().isEmpty()}">
+            <ul><li th:each="w : ${a.warnings()}" th:text="${w}">warning</li></ul>
+        </div>
+
+        <div class="search">
+            <label for="q">Find your street, village, ward or polling station</label>
+            <input id="q" type="search" autocomplete="off" th:value="${q}"
+                   placeholder="e.g. Arambakkam, Gandhi Nagar, Ward 3 – or a polling station number like 45">
+            <div class="row">
+                <span>Show votes for</span>
+                <details class="picker" id="picker">
+                    <summary id="pick-label">candidates</summary>
+                    <div class="pick-list">
+                        <label class="pick-all"><input type="checkbox" id="pick-all"> All candidates</label>
+                        <div id="pick-items"></div>
+                    </div>
+                </details>
+            </div>
+            <div class="hint">
+                Polling areas are listed in English as in the official list. All words must match;
+                a number on its own finds that polling station.
+            </div>
+        </div>
+
+        <div class="summary" id="summary"></div>
+
+        <div class="table-box">
+            <table class="cands">
+                <thead><tr><th>Candidate</th><th class="num">Votes</th><th class="num">Share</th><th class="barcell"></th></tr></thead>
+                <tbody id="cand-rows"></tbody>
+            </table>
+        </div>
+        <div class="more"><button class="link" id="toggle-cands" type="button"></button></div>
+
+        <h2 id="stations-title">Polling stations</h2>
+        <div class="table-box stations-box">
+            <table>
+                <thead><tr id="station-head"></tr></thead>
+                <tbody id="station-rows"></tbody>
+            </table>
+        </div>
+        <div class="more meta" id="station-note"></div>
+
+        <p class="meta">
+            Votes per polling station are read from the
+            <a th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener">Form 20 PDF</a> (EVM votes; postal votes are
+            not counted per polling station). Buildings and polling areas come from the
+            <a th:if="${a.listPdfUrl() != null}" th:href="${a.listPdfUrl()}" target="_blank" rel="noopener">official list of polling stations</a>
+            <span th:if="${a.listPdfUrl() == null}">official list of polling stations</span>
+            (CEO Tamil Nadu), matched by polling station number
+            (<span th:text="${a.matched() + ' of ' + a.stations().size()}">0 of 0</span> matched).
+            Parties are from the Form 7A list of contesting candidates.
+        </p>
+        <script id="area-data" type="application/json" th:utext="${areaData}">{}</script>
+    </th:block>
+</div>
+
+<script>
+(function () {
+    const el = document.getElementById('area-data');
+    if (!el) return;
+    const data = JSON.parse(el.textContent);
+    const cands = data.candidates;
+    const stations = data.stations.map(s => {
+        const text = (s.ps + ' ' + s.loc + ' ' + s.areas).toLowerCase();
+        return Object.assign(s, {
+            spaced: ' ' + text.replace(/[^a-z0-9]+/g, ' ') + ' ',
+            compact: text.replace(/[^a-z0-9]+/g, '')
+        });
+    });
+    const fmt = n => n.toLocaleString('en-IN');
+    const esc = s => s.replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+    const q = document.getElementById('q');
+    const MAX_ROWS = 400;
+    let showAllCands = false;
+    const label = c => c.name + (c.abbr ? ' (' + c.abbr + ')' : '');
+
+    // selected candidates (ballot indexes); from ?c=1,3 or ?c=all, else the winner
+    const selected = new Set();
+    const winner = Math.max(0, cands.findIndex(c => c.winner));
+    const fromUrl = new URLSearchParams(location.search).get('c');
+    if (fromUrl === 'all') {
+        cands.forEach((c, i) => selected.add(i));
+    } else if (fromUrl) {
+        fromUrl.split(',').map(n => parseInt(n, 10) - 1).filter(i => i >= 0 && i < cands.length).forEach(i => selected.add(i));
+    }
+    if (!selected.size) selected.add(winner);
+
+    const items = document.getElementById('pick-items');
+    const all = document.getElementById('pick-all');
+    items.innerHTML = cands.map((c, i) =>
+        '<label><input type="checkbox" value="' + i + '"><span>' + esc(c.name)
+        + (c.party ? '<div class="party">' + esc(c.party) + '</div>' : '') + '</span></label>').join('');
+    const boxes = Array.from(items.querySelectorAll('input'));
+
+    function syncPicker() {
+        boxes.forEach(b => b.checked = selected.has(+b.value));
+        all.checked = selected.size === cands.length;
+        all.indeterminate = selected.size > 0 && selected.size < cands.length;
+        const names = [...selected].sort((a, b) => a - b).map(i => label(cands[i]));
+        document.getElementById('pick-label').textContent =
+            selected.size === cands.length ? 'All ' + cands.length + ' candidates'
+            : selected.size === 0 ? 'No candidate selected'
+            : selected.size <= 2 ? names.join(', ')
+            : names[0] + ' + ' + (selected.size - 1) + ' more';
+    }
+    items.addEventListener('change', e => {
+        const i = +e.target.value;
+        if (e.target.checked) selected.add(i); else selected.delete(i);
+        render();
+    });
+    all.addEventListener('change', () => {
+        selected.clear();
+        if (all.checked) cands.forEach((c, i) => selected.add(i));
+        render();
+    });
+    document.addEventListener('click', e => {
+        const picker = document.getElementById('picker');
+        if (picker.open && !picker.contains(e.target)) picker.open = false;
+    });
+
+    function tokens(query) {
+        return query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 0);
+    }
+
+    function matches(s, toks, query) {
+        if (/^\s*\d+\s*[a-z]?\s*$/i.test(query)) {   // a number alone: that polling station
+            return s.ps.toLowerCase() === query.trim().toLowerCase().replace(/\s+/g, '');
+        }
+        return toks.every(t => /^\d+$/.test(t)
+            ? s.spaced.includes(' ' + t + ' ')          // numbers match whole numbers ("3" not "13")
+            : s.spaced.includes(t) || s.compact.includes(t));
+    }
+
+    function highlight(text, toks) {
+        let html = esc(text);
+        const words = toks.filter(t => !/^\d+$/.test(t) && t.length > 1)
+            .map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        if (!words.length) return html;
+        return html.replace(new RegExp('(' + words.join('|') + ')', 'gi'), '<mark>$1</mark>');
+    }
+
+    function render() {
+        const query = q.value.trim();
+        const toks = tokens(query);
+        const hits = query ? stations.filter(s => matches(s, toks, query)) : stations;
+        const chosen = [...selected].sort((a, b) => a - b);
+        syncPicker();
+
+        // votes of every candidate over the matching stations
+        const sums = cands.map(() => 0);
+        let valid = 0;
+        hits.forEach(s => { s.v.forEach((v, i) => sums[i] += v); valid += s.valid; });
+        const order = cands.map((c, i) => i).sort((a, b) => sums[b] - sums[a]);
+        const top = sums[order[0]] || 0;
+
+        const summary = document.getElementById('summary');
+        if (!hits.length) {
+            summary.innerHTML = 'No polling station matches <b>' + esc(query) + '</b>. Try fewer words or another spelling.';
+        } else {
+            summary.innerHTML = (query
+                ? '<b>' + hits.length + '</b> polling station' + (hits.length > 1 ? 's' : '') + ' match <b>' + esc(query) + '</b>'
+                : 'All <b>' + hits.length + '</b> polling stations')
+                + ' · <b>' + fmt(valid) + '</b> valid votes (EVM)'
+                + (chosen.length && chosen.length <= 4
+                    ? chosen.map(i => ' · <b>' + esc(cands[i].name) + '</b> got <b>' + fmt(sums[i]) + '</b>'
+                        + (valid ? ' (' + (100 * sums[i] / valid).toFixed(1) + '%)' : '')).join('')
+                    : '');
+        }
+
+        const shown = showAllCands ? order : order.filter((i, k) => k < 8 || selected.has(i));
+        document.getElementById('cand-rows').innerHTML = shown.map(i => {
+            const c = cands[i];
+            const pct = valid ? 100 * sums[i] / valid : 0;
+            return '<tr data-i="' + i + '"' + (selected.has(i) ? ' class="sel"' : '') + ' title="Click to add or remove this candidate"><td>' + esc(c.name)
+                + (c.party ? '<div class="party">' + esc(c.party) + '</div>' : '') + '</td>'
+                + '<td class="num">' + fmt(sums[i]) + '</td><td class="num">' + pct.toFixed(1) + '%</td>'
+                + '<td class="barcell"><div class="bar" style="width:' + (top ? 100 * sums[i] / top : 0) + '%"></div></td></tr>';
+        }).join('');
+        const toggle = document.getElementById('toggle-cands');
+        toggle.style.display = cands.length > 8 ? '' : 'none';
+        toggle.textContent = showAllCands ? 'Show fewer candidates' : 'Show all ' + cands.length + ' candidates';
+
+        document.getElementById('station-head').innerHTML =
+            '<th class="num">PS No.</th><th>Polling station (building)</th><th>Polling areas</th>'
+            + chosen.map(i => '<th class="cand-col">' + esc(cands[i].name)
+                + (cands[i].abbr ? '<div class="party">' + esc(cands[i].abbr) + '</div>' : '') + '</th>').join('')
+            + '<th class="num">Valid votes</th><th>Leading here</th>';
+        document.getElementById('stations-title').textContent = query ? 'Matching polling stations' : 'All polling stations';
+        document.getElementById('station-rows').innerHTML = hits.slice(0, MAX_ROWS).map(s => {
+            let lead = 0;
+            s.v.forEach((v, i) => { if (v > s.v[lead]) lead = i; });
+            const lc = cands[lead];
+            return '<tr><td class="num">' + esc(s.ps) + '</td>'
+                + '<td class="loc">' + (s.loc ? highlight(s.loc, toks) : '<span class="na">not in list</span>') + '</td>'
+                + '<td class="areas">' + (s.areas ? highlight(s.areas, toks) : '<span class="na">–</span>') + '</td>'
+                + chosen.map(i => {
+                    const v = s.v[i] || 0;
+                    return '<td class="num' + (i === lead && s.valid ? ' lead' : '') + '">' + fmt(v)
+                        + (s.valid ? '<div class="party">' + (100 * v / s.valid).toFixed(1) + '%</div>' : '') + '</td>';
+                }).join('')
+                + '<td class="num">' + fmt(s.valid) + '</td>'
+                + '<td>' + (s.valid ? esc(lc.name) + (lc.abbr ? ' <span class="party">' + esc(lc.abbr) + '</span>' : '')
+                    + '<div class="party">' + fmt(s.v[lead]) + ' votes</div>' : '<span class="na">–</span>') + '</td></tr>';
+        }).join('');
+        document.getElementById('station-note').textContent = hits.length > MAX_ROWS
+            ? 'Showing the first ' + MAX_ROWS + ' of ' + hits.length + ' polling stations; type more to narrow the list. The totals above cover all of them.'
+            : '';
+
+        try {
+            const url = new URL(location.href);
+            if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
+            const c = selected.size === cands.length ? 'all' : chosen.map(i => i + 1).join(',');
+            if (c && !(selected.size === 1 && selected.has(winner))) url.searchParams.set('c', c); else url.searchParams.delete('c');
+            history.replaceState(null, '', url);
+        } catch (e) { /* ignore */ }
+    }
+
+    let timer;
+    q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 120); });
+    document.getElementById('cand-rows').addEventListener('click', e => {
+        const tr = e.target.closest('tr[data-i]');
+        if (!tr) return;
+        const i = +tr.dataset.i;
+        if (selected.has(i)) selected.delete(i); else selected.add(i);
+        render();
+    });
+    document.getElementById('toggle-cands').addEventListener('click', () => { showAllCands = !showAllCands; render(); });
+    render();
+    if (!q.value) q.focus();
+})();
+</script>
+</body>
+</html>

@@ -1,13 +1,16 @@
 package com.election.ai.web;
 
+import com.election.ai.model.AreaStation;
 import com.election.ai.model.CandidateResult;
 import com.election.ai.model.Constituency;
 import com.election.ai.model.ConstituencyResult;
 import com.election.ai.model.District;
+import com.election.ai.model.PollingAreaResult;
 import com.election.ai.model.PollingStation;
 import com.election.ai.service.ConstituencyResultService;
 import com.election.ai.service.ConstituencyService;
 import com.election.ai.service.Form20PdfParser;
+import com.election.ai.service.PollingAreaService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,10 +41,15 @@ public class ConstituencyController {
 
     private final ConstituencyService service;
     private final ConstituencyResultService results;
+    private final PollingAreaService areas;
+    private final JsonMapper json;
 
-    public ConstituencyController(ConstituencyService service, ConstituencyResultService results) {
+    public ConstituencyController(ConstituencyService service, ConstituencyResultService results,
+                                  PollingAreaService areas, JsonMapper json) {
         this.service = service;
         this.results = results;
+        this.areas = areas;
+        this.json = json;
     }
 
     @GetMapping("/")
@@ -88,6 +97,83 @@ public class ConstituencyController {
             model.addAttribute("error", "Could not load the Form 20 PDF: " + e.getMessage());
         }
         return "constituency";
+    }
+
+    /** Search a constituency's polling areas (streets, villages) and see the votes cast there. */
+    @GetMapping("/constituency/{ac}/areas")
+    public String pollingAreas(@PathVariable int ac,
+                               @RequestParam(name = "q", required = false) String q,
+                               @RequestParam(name = "refresh", defaultValue = "false") boolean refresh,
+                               Model model) {
+        Constituency c = service.find(ac).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        model.addAttribute("c", c);
+        model.addAttribute("q", q == null ? "" : q);
+        try {
+            PollingAreaResult a = areas.result(ac, refresh);
+            model.addAttribute("a", a);
+            model.addAttribute("r", a.result());
+            // the page searches in the browser; "</" is escaped so text cannot close the script tag
+            model.addAttribute("areaData", json.writeValueAsString(areaData(a)).replace("</", "<\\/"));
+        } catch (Form20PdfParser.NoTextException e) {
+            model.addAttribute("error", "This constituency's Form 20 PDF is a scanned image with no text, "
+                    + "so its votes cannot be read automatically. Open the original PDF to view it.");
+        } catch (IOException | RuntimeException e) {
+            model.addAttribute("error", "Could not load the data: " + e.getMessage());
+        }
+        return "areas";
+    }
+
+    /** Compact data for the polling-area search page. */
+    private static Map<String, Object> areaData(PollingAreaResult a) {
+        List<Map<String, Object>> candidates = new java.util.ArrayList<>();
+        for (CandidateResult k : a.result().candidates()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("name", k.name());
+            m.put("party", k.party() == null ? "" : k.party());
+            m.put("abbr", partyShort(k.party()));
+            m.put("winner", k.winner());
+            candidates.add(m);
+        }
+        List<Map<String, Object>> stations = new java.util.ArrayList<>();
+        for (AreaStation s : a.stations()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("ps", s.serialNo());
+            m.put("loc", s.info() == null ? "" : s.info().location());
+            m.put("areas", s.info() == null ? "" : s.info().areas());
+            m.put("v", s.votes().candidateVotes());
+            m.put("valid", s.votes().totalValid());
+            m.put("nota", s.votes().nota());
+            stations.add(m);
+        }
+        return Map.of("candidates", candidates, "stations", stations);
+    }
+
+    /** "Dravida Munnetra Kazhagam" -> "DMK"; "Independent" -> "IND"; short names kept. */
+    static String partyShort(String party) {
+        if (party == null || party.isBlank()) {
+            return "";
+        }
+        if (party.equalsIgnoreCase("independent")) {
+            return "IND";
+        }
+        String[] words = party.replaceAll("[()]", " ").trim().split("\\s+");
+        if (words.length == 1) {
+            return party.length() <= 8 ? party : party.substring(0, 6);
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (!w.isEmpty() && Character.isUpperCase(w.charAt(0))) {
+                sb.append(w.charAt(0));
+            }
+        }
+        return sb.toString();
+    }
+
+    @GetMapping("/api/constituency/{ac}/areas")
+    @ResponseBody
+    public PollingAreaResult pollingAreasApi(@PathVariable int ac) throws IOException {
+        service.find(ac).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return areas.result(ac, false);
     }
 
     @GetMapping("/api/constituency/{ac}")
