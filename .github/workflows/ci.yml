@@ -1,0 +1,12 @@
+# Tests every push and pull request; pushes to main then deploy to OpenShift via Jenkins.
+# Shared workflow and manifests: https://github.com/andrewsselvaraj/devops_ocp
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  ci:
+    uses: andrewsselvaraj/devops_ocp/.github/workflows/maven-ci.yml@main
+    with:
+      java-version: "21"
