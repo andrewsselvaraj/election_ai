@@ -55,7 +55,7 @@
 <body>
 <header>
     <h1>Tamil Nadu Legislative Assembly Election 2026 – Form 20</h1>
-    <div class="meta">Click a constituency for its results, or “Vote Analysis” to find votes by street or village.</div>
+    <div class="meta">Click a constituency for its results, or “Vote Analysis by Streets (Polling Area)” to find votes by street or village.</div>
 </header>
 
 <div class="stats">
@@ -89,7 +89,7 @@
                 </a>
                 <span class="tag" th:if="${c.reservation() != null}" th:text="${c.reservation()}">SC</span>
                 <a th:href="@{/constituency/{ac}/areas(ac=${c.number()})}"
-                   title="Find a street or village and see the votes at its polling station">Vote Analysis</a>
+                   title="Find a street or village and see the votes at its polling station">Vote Analysis by Streets (Polling Area)</a>
             </li>
         </ul>
     </section>
