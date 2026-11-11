@@ -92,7 +92,7 @@ public class ConstituencyController {
             model.addAttribute("loadedAt", LOADED_AT_FORMAT.format(r.loadedAt()));
         } catch (Form20PdfParser.NoTextException e) {
             model.addAttribute("error", "This constituency's Form 20 PDF is a scanned image with no text, "
-                    + "so its numbers cannot be read automatically. Open the original PDF to view it.");
+                    + "so its results are not available here.");
         } catch (IOException | RuntimeException e) {
             model.addAttribute("error", "Could not load the Form 20 PDF: " + e.getMessage());
         }
@@ -116,7 +116,7 @@ public class ConstituencyController {
             model.addAttribute("areaData", json.writeValueAsString(areaData(a)).replace("</", "<\\/"));
         } catch (Form20PdfParser.NoTextException e) {
             model.addAttribute("error", "This constituency's Form 20 PDF is a scanned image with no text, "
-                    + "so its votes cannot be read automatically. Open the original PDF to view it.");
+                    + "so its votes are not available here.");
         } catch (IOException | RuntimeException e) {
             model.addAttribute("error", "Could not load the data: " + e.getMessage());
         }

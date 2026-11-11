@@ -121,7 +121,7 @@ public class PollingAreaService {
             long noAreas = stations.stream().filter(s -> s.info() != null && s.info().areas().isBlank()).count();
             if (noAreas > 0) {
                 warnings.add(noAreas + " polling station(s) have no polling areas read from the list; "
-                        + "check the original PDF for those.");
+                        + "they can still be found by polling station number.");
             }
         }
         return new PollingAreaResult(form20, stations, matched, list == null ? null : list.pdfUrl(), warnings);

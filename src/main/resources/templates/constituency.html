@@ -70,10 +70,7 @@
         </div>
         <div class="actions">
             <a class="btn primary" th:if="${r != null}" th:href="@{/constituency/{ac}/areas(ac=${c.number()})}">Search by polling area</a>
-            <a class="btn" th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener">Original PDF ↗</a>
             <a class="btn" th:if="${r != null}" th:href="@{/constituency/{ac}.csv(ac=${c.number()})}">Download CSV</a>
-            <a class="btn" th:if="${r != null}" th:href="@{/api/constituency/{ac}(ac=${c.number()})}">JSON</a>
-            <a class="btn" th:href="@{/constituency/{ac}(ac=${c.number()},refresh=true)}">Reload from source</a>
         </div>
     </header>
 
@@ -180,10 +177,8 @@
             </table>
         </div>
         <p class="meta">
-            Votes are read from the Form 20 PDF. Form 20 does not print party names, so parties come from
-            the official list of contesting candidates (Form 7A) on
-            <a href="https://erolls.tn.gov.in/acwithcandidate_tnla2026/AC_List.aspx" target="_blank" rel="noopener">erolls.tn.gov.in</a>,
-            matched by ballot serial number.
+            Votes are from the official Form 20 result sheet. Parties are from the official list of
+            contesting candidates (Form 7A), matched by ballot serial number.
         </p>
     </th:block>
 </div>

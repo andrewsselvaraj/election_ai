@@ -43,6 +43,8 @@
         li { display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-top: 1px solid var(--line); }
         .no { min-width: 2.6em; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
         .name { flex: 1; }
+        li a.ac { flex: 1; display: flex; gap: 10px; color: var(--text); font-size: 1rem; white-space: normal; }
+        li a.ac .name { color: var(--accent); }
         .tag { font-size: .7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
                color: var(--sc); background: var(--sc-bg); }
         li a { color: var(--accent); font-size: .85rem; text-decoration: none; white-space: nowrap; }
@@ -53,11 +55,7 @@
 <body>
 <header>
     <h1>Tamil Nadu Legislative Assembly Election 2026 – Form 20</h1>
-    <div class="meta">
-        Source: <a th:href="${source.startsWith('http') ? source : 'https://www.elections.tn.gov.in/Form20_TNLA2026.aspx'}"
-                   th:text="${source}" target="_blank" rel="noopener">source</a>
-        · loaded <span th:text="${loadedAt}">now</span>
-    </div>
+    <div class="meta">Click a constituency for its results, or “Polling areas” to find votes by street or village.</div>
 </header>
 
 <div class="stats">
@@ -73,7 +71,7 @@
         <a th:if="${!q.isEmpty()}" th:href="@{/}"><button type="button" class="secondary">Clear</button></a>
     </form>
     <form method="post" th:action="@{/refresh}">
-        <button type="submit" class="secondary" title="Re-fetch from elections.tn.gov.in">Refresh from site</button>
+        <button type="submit" class="secondary" title="Reload the constituency list">Refresh list</button>
     </form>
 </div>
 
@@ -85,12 +83,11 @@
         </h2>
         <ul>
             <li th:each="c : ${d.constituencies()}">
-                <span class="no" th:text="${c.number()}">1</span>
-                <span class="name" th:text="${c.name()}">Gummidipoondi</span>
+                <a class="ac" th:href="@{/constituency/{ac}(ac=${c.number()})}" title="Results and votes by polling station">
+                    <span class="no" th:text="${c.number()}">1</span>
+                    <span class="name" th:text="${c.name()}">Gummidipoondi</span>
+                </a>
                 <span class="tag" th:if="${c.reservation() != null}" th:text="${c.reservation()}">SC</span>
-                <a th:href="@{/constituency/{ac}(ac=${c.number()})}"
-                   title="Load polling-station votes from the Form 20 PDF">Form 20 PDF</a>
-                <a th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener" title="Open the original PDF">↗</a>
                 <a th:href="@{/constituency/{ac}/areas(ac=${c.number()})}"
                    title="Find a street or village and see the votes at its polling station">Polling areas</a>
             </li>

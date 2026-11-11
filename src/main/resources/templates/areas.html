@@ -138,12 +138,9 @@
         <div class="more meta" id="station-note"></div>
 
         <p class="meta">
-            Votes per polling station are read from the
-            <a th:href="${c.form20PdfUrl()}" target="_blank" rel="noopener">Form 20 PDF</a> (EVM votes; postal votes are
-            not counted per polling station). Buildings and polling areas come from the
-            <a th:if="${a.listPdfUrl() != null}" th:href="${a.listPdfUrl()}" target="_blank" rel="noopener">official list of polling stations</a>
-            <span th:if="${a.listPdfUrl() == null}">official list of polling stations</span>
-            (CEO Tamil Nadu), matched by polling station number
+            Votes per polling station are from the official Form 20 result sheet (EVM votes; postal votes
+            are not counted per polling station). Buildings and polling areas come from the official list
+            of polling stations, matched by polling station number
             (<span th:text="${a.matched() + ' of ' + a.stations().size()}">0 of 0</span> matched).
             Parties are from the Form 7A list of contesting candidates.
         </p>
