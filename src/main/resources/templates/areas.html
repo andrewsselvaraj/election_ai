@@ -71,6 +71,13 @@
         .more { margin: 8px 0; }
         button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
         .stations-box { max-height: 70vh; }
+        .stations-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 22px 0 8px; }
+        .stations-head h2 { margin: 0; }
+        .exports { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .btn { font: inherit; font-size: .85rem; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--accent);
+               color: var(--accent); background: transparent; cursor: pointer; }
+        .btn:hover { background: var(--accent-soft); }
+        .btn:disabled { opacity: .6; cursor: wait; }
         @media (max-width: 700px) {
             .loc { max-width: 160px; }
             .barcell { display: none; }
@@ -128,7 +135,17 @@
         </div>
         <div class="more"><button class="link" id="toggle-cands" type="button"></button></div>
 
-        <h2 id="stations-title">Polling stations</h2>
+        <div class="stations-head">
+            <h2 id="stations-title">Polling stations</h2>
+            <div class="exports" id="export-bar"
+                 th:data-file="${'AC' + #numbers.formatInteger(c.number(), 3) + '_' + #strings.replace(c.displayName(), ' ', '_') + '_votes_by_polling_area'}"
+                 th:data-title="${c.number() + '. ' + c.displayName() + ' – votes by polling area'}"
+                 th:data-district="${'District ' + c.districtNo() + '. ' + c.districtName() + ' · TN Legislative Assembly Election 2026'}">
+                <span class="meta">Export:</span>
+                <button class="btn" id="export-pdf" type="button" title="Download the polling stations below as a PDF">PDF</button>
+                <button class="btn" id="export-html" type="button" title="Download the polling stations below as a web page">HTML</button>
+            </div>
+        </div>
         <div class="table-box stations-box">
             <table>
                 <thead><tr id="station-head"></tr></thead>
@@ -233,10 +250,12 @@
         return html.replace(new RegExp('(' + words.join('|') + ')', 'gi'), '<mark>$1</mark>');
     }
 
+    let lastHits = [];
     function render() {
         const query = q.value.trim();
         const toks = tokens(query);
         const hits = query ? stations.filter(s => matches(s, toks, query)) : stations;
+        lastHits = hits;
         const chosen = [...selected].sort((a, b) => a - b);
         syncPicker();
 
@@ -317,6 +336,123 @@
         const i = +tr.dataset.i;
         if (selected.has(i)) selected.delete(i); else selected.add(i);
         render();
+    });
+    // PDF/HTML export: every matching station (not only the rows on screen) and the chosen candidates;
+    // compact: short headings and party abbreviations, for the narrow PDF page
+    function exportRows(compact) {
+        const chosen = [...selected].sort((a, b) => a - b);
+        const head = ['PS No.', 'Polling station (building)', 'Polling areas'];
+        chosen.forEach(i => compact
+            ? head.push(cands[i].name + (cands[i].abbr ? '\n(' + cands[i].abbr + ')' : ''), '%')
+            : head.push(label(cands[i]) + ' votes', cands[i].name + ' %'));
+        head.push('Valid votes', 'NOTA', 'Leading here', compact ? 'Party' : 'Leading party', 'Leader votes');
+        const rows = [head];
+        lastHits.forEach(s => {
+            let lead = 0;
+            s.v.forEach((v, i) => { if (v > s.v[lead]) lead = i; });
+            const r = [/^\d+$/.test(s.ps) ? +s.ps : s.ps, s.loc || '', s.areas || ''];
+            chosen.forEach(i => {
+                const v = s.v[i] || 0;
+                r.push(v, s.valid ? +(100 * v / s.valid).toFixed(2) : '');
+            });
+            r.push(s.valid, s.nota == null ? '' : s.nota,
+                s.valid ? cands[lead].name : '',
+                s.valid ? ((compact ? cands[lead].abbr : cands[lead].party) || '') : '', s.valid ? s.v[lead] : '');
+            rows.push(r);
+        });
+        return rows;
+    }
+    function loadScript(src, ready) {
+        if (ready()) return Promise.resolve();
+        return new Promise((ok, fail) => {
+            const sc = document.createElement('script');
+            sc.src = src;
+            sc.onload = () => ok();
+            sc.onerror = () => fail(new Error('The export could not be loaded. Check your internet connection and try again.'));
+            document.head.appendChild(sc);
+        });
+    }
+    const exportsBox = document.getElementById('export-bar');
+    function fileName(ext) {
+        const query = q.value.trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+        return exportsBox.dataset.file + (query ? '_' + query : '') + '.' + ext;
+    }
+    // heading lines shared by the PDF and HTML exports
+    function exportHeading() {
+        return [exportsBox.dataset.title, exportsBox.dataset.district, document.getElementById('summary').textContent];
+    }
+    function download(blob, name) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function runExport(btn, job) {
+        btn.addEventListener('click', () => {
+            btn.disabled = true;
+            Promise.resolve().then(job).catch(e => alert(e.message)).finally(() => { btn.disabled = false; });
+        });
+    }
+
+    runExport(document.getElementById('export-pdf'), () =>
+        loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf)
+            .then(() => loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
+                () => window.jspdf && window.jspdf.jsPDF.API.autoTable))
+            .then(() => {
+                const rows = exportRows(true);
+                const head = rows.shift();
+                const doc = new window.jspdf.jsPDF({orientation: 'landscape', unit: 'pt', format: 'a4'});
+                // the built-in PDF font only covers Latin text, so keep to plain punctuation
+                const [title, district, summary] = exportHeading().map(t => t.replace(/–/g, '-').replace(/·/g, '|'));
+                doc.setFontSize(14);
+                doc.text(title, 40, 40);
+                doc.setFontSize(9);
+                doc.setTextColor(90);
+                doc.text(district, 40, 56);
+                doc.text(doc.splitTextToSize(summary, 760), 40, 70);
+                const cols = {0: {cellWidth: 26}, 1: {cellWidth: 120}, 2: {cellWidth: 'auto', minCellWidth: 180}};
+                head.forEach((h, i) => {   // numbers right-aligned; text columns are building, areas, leader, party
+                    if (i === 0 || (i >= 3 && i !== head.length - 3 && i !== head.length - 2)) {
+                        cols[i] = Object.assign(cols[i] || {}, {halign: 'right'});
+                    }
+                });
+                doc.autoTable({
+                    head: [head], body: rows, startY: 92, margin: {left: 30, right: 30},
+                    rowPageBreak: 'avoid',
+                    styles: {fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'top'},
+                    headStyles: {fillColor: [11, 110, 79], textColor: 255, fontSize: 6.5},
+                    columnStyles: cols,
+                    didDrawPage: d => {
+                        doc.setFontSize(8);
+                        doc.setTextColor(120);
+                        doc.text('Page ' + doc.internal.getNumberOfPages(), doc.internal.pageSize.getWidth() - 70,
+                            doc.internal.pageSize.getHeight() - 16);
+                    }
+                });
+                doc.save(fileName('pdf'));
+            }));
+
+    runExport(document.getElementById('export-html'), () => {
+        const rows = exportRows();
+        const head = rows.shift();
+        const [title, district, summary] = exportHeading();
+        const cell = (v, tag) => '<' + tag + (typeof v === 'number' ? ' class="n"' : '') + '>'
+            + esc(typeof v === 'number' ? v.toLocaleString('en-IN') : String(v)) + '</' + tag + '>';
+        const html = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8">'
+            + '<meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>'
+            + '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;margin:24px;color:#1d2330}'
+            + 'h1{font-size:1.3rem;margin:0 0 4px}p{color:#5f6b7a;margin:2px 0;font-size:.9rem}'
+            + 'table{border-collapse:collapse;margin-top:14px;font-size:.82rem}'
+            + 'th,td{border:1px solid #d5dae0;padding:5px 8px;text-align:left;vertical-align:top}'
+            + 'th{background:#e6f3ee;position:sticky;top:0}td.n,th.n{text-align:right;white-space:nowrap}'
+            + 'td:nth-child(3){min-width:320px}@media print{th{position:static}}</style></head><body>'
+            + '<h1>' + esc(title) + '</h1><p>' + esc(district) + '</p><p>' + esc(summary) + '</p>'
+            + '<table><thead><tr>' + head.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>'
+            + rows.map(r => '<tr>' + r.map(v => cell(v, 'td')).join('') + '</tr>').join('\n')
+            + '</tbody></table></body></html>';
+        download(new Blob([html], {type: 'text/html;charset=utf-8'}), fileName('html'));
     });
     document.getElementById('toggle-cands').addEventListener('click', () => { showAllCands = !showAllCands; render(); });
     render();
