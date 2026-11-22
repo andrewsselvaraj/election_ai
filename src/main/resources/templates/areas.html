@@ -185,16 +185,19 @@
     let showAllCands = false;
     const label = c => c.name + (c.abbr ? ' (' + c.abbr + ')' : '');
 
-    // selected candidates (ballot indexes); from ?c=1,3 or ?c=all, else the winner
+    // selected candidates (ballot indexes); from ?c=1,3 or ?c=all, else every party candidate (no independents)
     const selected = new Set();
     const winner = Math.max(0, cands.findIndex(c => c.winner));
+    const defaults = cands.map((c, i) => i).filter(i => cands[i].abbr !== 'IND');
+    if (!defaults.length) defaults.push(winner);
+    const defaultKey = defaults.join(',');
     const fromUrl = new URLSearchParams(location.search).get('c');
     if (fromUrl === 'all') {
         cands.forEach((c, i) => selected.add(i));
     } else if (fromUrl) {
         fromUrl.split(',').map(n => parseInt(n, 10) - 1).filter(i => i >= 0 && i < cands.length).forEach(i => selected.add(i));
     }
-    if (!selected.size) selected.add(winner);
+    if (!selected.size) defaults.forEach(i => selected.add(i));
 
     const items = document.getElementById('pick-items');
     const all = document.getElementById('pick-all');
@@ -323,7 +326,7 @@
             const url = new URL(location.href);
             if (query) url.searchParams.set('q', query); else url.searchParams.delete('q');
             const c = selected.size === cands.length ? 'all' : chosen.map(i => i + 1).join(',');
-            if (c && !(selected.size === 1 && selected.has(winner))) url.searchParams.set('c', c); else url.searchParams.delete('c');
+            if (c && chosen.join(',') !== defaultKey) url.searchParams.set('c', c); else url.searchParams.delete('c');
             history.replaceState(null, '', url);
         } catch (e) { /* ignore */ }
     }
