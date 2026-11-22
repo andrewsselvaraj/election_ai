@@ -1,0 +1,42 @@
+# Kong declarative config (DB-less). Edited here, baked into the gateway image.
+# ${KONG_API_KEY} is filled in at container start from Secret Manager (see start.sh).
+_format_version: "3.0"
+
+services:
+  - name: election-ai
+    url: https://election-ai-839833619222.asia-south1.run.app
+    connect_timeout: 60000    # the app may be cold-starting
+    read_timeout: 120000      # Form 20 PDFs are fetched and parsed on first view
+    write_timeout: 60000
+    routes:
+      # Web pages, CSV downloads, static files: open to everyone, rate-limited per client IP.
+      - name: web
+        paths: ["/"]
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config: { minute: 120, policy: local, limit_by: ip }
+
+      # JSON API: needs an API key in the "apikey" header (or ?apikey=).
+      - name: api
+        paths: ["/api"]
+        strip_path: false
+        plugins:
+          - name: key-auth
+            config: { key_names: ["apikey"], hide_credentials: true }
+          - name: rate-limiting
+            config: { minute: 60, policy: local, limit_by: consumer }
+
+      # Reload of all official data (the Refresh button): heavy, so tightly limited.
+      - name: refresh
+        paths: ["/refresh"]
+        methods: ["POST"]
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config: { hour: 5, policy: local, limit_by: ip }
+
+consumers:
+  - username: default-client
+    keyauth_credentials:
+      - key: "${KONG_API_KEY}"
