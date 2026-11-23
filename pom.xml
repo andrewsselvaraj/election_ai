@@ -41,6 +41,14 @@
             <version>3.0.5</version>
         </dependency>
 
+        <!-- Visitor statistics are stored in Firestore through its REST API (no SDK needed).
+             Reads the DB-IP Lite city database (approximate visitor location from IP) -->
+        <dependency>
+            <groupId>com.maxmind.geoip2</groupId>
+            <artifactId>geoip2</artifactId>
+            <version>4.2.1</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

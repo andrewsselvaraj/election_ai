@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Visitor Statistics</title>
+    <style>
+        :root {
+            --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6b7a; --faint: #8a94a3;
+            --line: #e2e6eb; --grid: #eef0f3; --accent: #0b6e4f; --accent-soft: #e6f3ee; --bar: #0b6e4f;
+            --err: #a4262c; --err-bg: #fde7e9;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #12151a; --card: #1b2028; --text: #e6e9ee; --muted: #9aa5b3; --faint: #6f7a88;
+                --line: #2c333d; --grid: #242a33; --accent: #4cc39a; --accent-soft: #17332a; --bar: #4cc39a;
+                --err: #f1707b; --err-bg: #3b1a1d;
+            }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+               background: var(--bg); color: var(--text); line-height: 1.45; }
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px 48px; }
+        header { padding: 20px 0 4px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+        h1 { margin: 4px 0; font-size: 1.5rem; }
+        h2 { font-size: 1rem; margin: 0 0 10px; }
+        a { color: var(--accent); }
+        .meta { color: var(--muted); font-size: .875rem; }
+        .ranges { display: flex; gap: 6px; }
+        .ranges a { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none;
+                    color: var(--text); font-size: .875rem; background: var(--card); }
+        .ranges a.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .notice { border-radius: 8px; padding: 10px 14px; margin: 12px 0; background: var(--err-bg); color: var(--err); }
+
+        .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+        .tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+        .tile b { display: block; font-size: 1.7rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+        .tile span { color: var(--muted); font-size: .82rem; }
+
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 14px 0; }
+        .chart { position: relative; }
+        .chart svg { display: block; width: 100%; height: 220px; overflow: visible; }
+        .chart .tip { position: absolute; pointer-events: none; background: var(--text); color: var(--bg);
+                      font-size: .8rem; padding: 6px 9px; border-radius: 6px; white-space: nowrap;
+                      transform: translate(-50%, -110%); opacity: 0; transition: opacity .1s; }
+        .chart .tip.on { opacity: 1; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+        .grid .card { margin: 0; }
+        table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+        th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+        th { color: var(--muted); font-weight: 600; font-size: .78rem; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .barcell { width: 32%; vertical-align: middle; }
+        .hbar { height: 8px; background: var(--bar); border-radius: 0 4px 4px 0; min-width: 2px; }
+        .empty { color: var(--muted); font-size: .86rem; }
+        .recent { overflow: auto; }
+        .recent td { white-space: nowrap; }
+        .tag { font-size: .72rem; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+        code { font-size: .8rem; color: var(--muted); }
+        footer { color: var(--muted); font-size: .8rem; margin-top: 24px; }
+        footer li { margin: 3px 0; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <div>
+            <div class="meta"><a th:href="@{/}">← Site</a></div>
+            <h1>Visitor Statistics</h1>
+            <div class="meta">Times and days in IST · Your location as detected: <b th:text="${you}">Chennai</b></div>
+        </div>
+        <nav class="ranges" aria-label="Date range">
+            <a th:each="r : ${ {7, 30, 90, 365} }" th:href="@{/stats(days=${r})}" th:text="${r == 365 ? '1 year' : r + ' days'}"
+               th:classappend="${r == days} ? 'on'">30 days</a>
+        </nav>
+    </header>
+
+    <div class="notice" th:if="${error != null}" th:text="${error}">error</div>
+
+    <th:block th:if="${error == null}">
+        <div class="tiles">
+            <div class="tile"><b th:text="${#numbers.formatInteger(allVisitors, 1, 'COMMA')}">0</b><span>Unique visitors, all time</span></div>
+            <div class="tile"><b th:text="${#numbers.formatInteger(allViews, 1, 'COMMA')}">0</b><span>Page views, all time</span></div>
+            <div class="tile"><b th:text="${#numbers.formatInteger(todayVisitors, 1, 'COMMA')}">0</b><span>Visitors today</span></div>
+            <div class="tile"><b th:text="${#numbers.formatInteger(todayViews, 1, 'COMMA')}">0</b><span>Page views today</span></div>
+            <div class="tile"><b th:text="${#numbers.formatInteger(rangeNew, 1, 'COMMA')}">0</b>
+                <span th:text="${'New visitors, last ' + days + ' days'}">New visitors</span></div>
+            <div class="tile"><b th:text="${#numbers.formatInteger(rangeViews, 1, 'COMMA')}">0</b>
+                <span th:text="${'Page views, last ' + days + ' days'}">Page views</span></div>
+        </div>
+
+        <section class="card">
+            <h2 th:text="${'Unique visitors per day, last ' + days + ' days'}">Unique visitors per day</h2>
+            <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+        </section>
+
+        <div class="grid">
+            <section class="card" th:each="t : ${tables}">
+                <h2 th:text="${t.key}">Countries</h2>
+                <table th:if="${!t.value.isEmpty()}">
+                    <thead><tr><th>Name</th><th class="num">Views</th><th class="num">Share</th><th class="barcell"></th></tr></thead>
+                    <tbody>
+                    <tr th:each="r : ${t.value}">
+                        <td th:text="${r.name()}">India</td>
+                        <td class="num" th:text="${#numbers.formatInteger(r.count(), 1, 'COMMA')}">0</td>
+                        <td class="num" th:text="${#numbers.formatDecimal(r.pct(), 1, 1) + '%'}">0%</td>
+                        <td class="barcell"><div class="hbar" th:style="${'width:' + #numbers.formatDecimal(r.pct(), 1, 1, 'POINT') + '%'}"></div></td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="empty" th:if="${t.value.isEmpty()}">No data yet.</div>
+            </section>
+        </div>
+
+        <section class="card">
+            <h2>Latest 50 page views</h2>
+            <div class="recent">
+                <table>
+                    <thead><tr><th>Time</th><th>Location</th><th>Page</th><th>Device</th><th>Browser / OS</th><th>From</th><th>Visitor</th></tr></thead>
+                    <tbody>
+                    <tr th:each="v : ${recent}">
+                        <td th:text="${v.time}">23 Nov, 10:15</td>
+                        <td th:text="${v.place}">Chennai, Tamil Nadu, India</td>
+                        <td><span th:text="${v.page}">Home</span> <code th:text="${v.path}">/</code></td>
+                        <td th:text="${v.device}">Mobile</td>
+                        <td th:text="${v.browser + ' / ' + v.os}">Chrome / Android</td>
+                        <td th:text="${v['referrer']}"></td>
+                        <td><code th:text="${#strings.substring(v.visitor, 0, 6)}">a1b2c3</code>
+                            <span class="tag" th:if="${v.newVisitor == true}">new</span></td>
+                    </tr>
+                    <tr th:if="${recent.isEmpty()}"><td colspan="7" class="empty">No visits recorded yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer>
+            <ul>
+                <li th:text="${'Last ' + days + ' days, not counted above: ' + rangeBots + ' views by bots and link previews, and '
+                              + rangeAnon + ' views from browsers that asked not to be tracked (counted only, no details kept).'}"></li>
+                <li>Privacy: IP addresses are not stored. A visitor is an anonymous id made from a keyed one-way hash
+                    of IP address + browser, so the same person on two browsers or networks counts twice. Location is
+                    approximate (city level) and looked up inside the app; no data is sent to outside services.
+                    Individual page views are deleted after 180 days; daily totals are kept.</li>
+                <li>The “last N days” unique count adds up each day’s unique visitors, so someone visiting on three days counts three times.</li>
+                <li>Statistics refresh every 30 seconds. IP geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0).</li>
+            </ul>
+        </footer>
+    </th:block>
+</div>
+
+<script id="chart-data" type="application/json" th:if="${chartJson != null}" th:utext="${chartJson}">[]</script>
+<script>
+(function () {
+    const el = document.getElementById('chart-data');
+    const box = document.getElementById('chart');
+    if (!el || !box) return;
+    const data = JSON.parse(el.textContent);
+    const tip = document.getElementById('tip');
+    const NS = 'http://www.w3.org/2000/svg';
+    const fmt = n => n.toLocaleString('en-IN');
+    const label = d => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+
+    function draw() {
+        box.querySelector('svg')?.remove();
+        const W = box.clientWidth, H = 220, L = 36, B = 22, T = 8;
+        const max = Math.max(1, ...data.map(d => d.visitors));
+        const step = Math.pow(10, Math.floor(Math.log10(max)));
+        const top = Math.ceil(max / step) * step;
+        const y = v => T + (H - T - B) * (1 - v / top);
+        const slot = (W - L) / data.length, bw = Math.max(1, Math.min(28, slot - 2));
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', 'Unique visitors per day');
+        const css = getComputedStyle(document.documentElement);
+        const add = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag);
+            for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
+
+        [0, top / 2, top].forEach(v => {           // recessive grid + y labels
+            add('line', { x1: L, x2: W, y1: y(v), y2: y(v), stroke: css.getPropertyValue('--grid'), 'stroke-width': 1 });
+            const t = add('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 11, fill: css.getPropertyValue('--faint') });
+            t.textContent = fmt(v);
+        });
+        const every = Math.ceil(data.length / 8);  // at most ~8 x labels
+        data.forEach((d, i) => {
+            const x = L + i * slot + (slot - bw) / 2, h = (H - T - B) - (y(d.visitors) - T);
+            if (d.visitors > 0) {
+                const r = Math.min(4, bw / 2, h);
+                add('path', { fill: css.getPropertyValue('--bar'),
+                    d: 'M' + x + ',' + (H - B) + 'V' + (y(d.visitors) + r) + 'q0,-' + r + ' ' + r + ',-' + r
+                       + 'H' + (x + bw - r) + 'q' + r + ',0 ' + r + ',' + r + 'V' + (H - B) + 'Z' });
+            }
+            if (i % every === 0 || i === data.length - 1) {
+                const t = add('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle', 'font-size': 11, fill: css.getPropertyValue('--faint') });
+                t.textContent = label(d.day);
+            }
+            const hit = add('rect', { x: L + i * slot, y: T, width: slot, height: H - T - B, fill: 'transparent' });
+            hit.addEventListener('mouseenter', () => {
+                tip.innerHTML = '<b>' + label(d.day) + '</b><br>' + fmt(d.visitors) + ' visitors · ' + fmt(d.views) + ' views';
+                tip.style.left = (x + bw / 2) + 'px'; tip.style.top = y(d.visitors) + 'px';
+                tip.classList.add('on');
+            });
+            hit.addEventListener('mouseleave', () => tip.classList.remove('on'));
+        });
+        box.insertBefore(svg, tip);
+    }
+    draw();
+    let t; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(draw, 150); });
+})();
+</script>
+</body>
+</html>
