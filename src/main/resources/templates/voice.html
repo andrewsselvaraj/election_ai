@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Voice Search – TN Assembly 2026</title>
+    <style>
+        :root {
+            --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #5f6b7a;
+            --line: #e2e6eb; --accent: #0b6e4f; --accent-soft: #e6f3ee; --rec: #c62828;
+            --warn: #8a4b00; --warn-bg: #fff2df; --bar: #0b6e4f;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #12151a; --card: #1b2028; --text: #e6e9ee; --muted: #9aa5b3;
+                --line: #2c333d; --accent: #4cc39a; --accent-soft: #17332a; --rec: #ef5350;
+                --warn: #f0b46a; --warn-bg: #3a2a14; --bar: #4cc39a;
+            }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+               background: var(--bg); color: var(--text); line-height: 1.45; }
+        .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px 48px; }
+        header { padding: 20px 0 4px; }
+        h1 { margin: 4px 0; font-size: 1.5rem; }
+        h2 { font-size: 1.05rem; margin: 0 0 10px; }
+        a { color: var(--accent); }
+        .meta { color: var(--muted); font-size: .9rem; }
+        .crumbs { font-size: .9rem; }
+
+        .steps { display: flex; gap: 8px; margin: 16px 0 12px; font-size: .85rem; }
+        .steps span { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+        .steps span.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .steps span.done { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+        .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin: 14px 0; }
+        .ask { text-align: center; }
+        .prompt { font-size: 1.15rem; font-weight: 600; margin: 0 0 4px; }
+        .examples { color: var(--muted); font-size: .9rem; margin: 0 0 18px; }
+
+        .mic { width: 96px; height: 96px; border-radius: 50%; border: 0; cursor: pointer;
+               background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+               box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+        .mic svg { width: 42px; height: 42px; }
+        .mic:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 4px; }
+        .mic.listening { background: var(--rec); animation: pulse 1.2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(198,40,40,.45); } 50% { box-shadow: 0 0 0 18px rgba(198,40,40,0); } }
+        @media (prefers-reduced-motion: reduce) { .mic.listening { animation: none; } }
+        .status { min-height: 1.5em; margin: 12px 0 0; color: var(--muted); font-size: .95rem; }
+        .heard { min-height: 1.6em; font-size: 1.3rem; font-weight: 600; margin: 4px 0 0; overflow-wrap: anywhere; }
+
+        .typed { display: flex; gap: 8px; margin-top: 16px; }
+        .typed input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 8px;
+                       border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+        .btn { font: inherit; font-size: .9rem; padding: 9px 14px; border-radius: 8px; border: 1px solid var(--accent);
+               background: transparent; color: var(--accent); cursor: pointer; }
+        .btn:hover { background: var(--accent-soft); }
+        .btn.solid { background: var(--accent); color: #fff; }
+
+        .chosen { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .chosen b { font-size: 1.1rem; }
+
+        .choices { display: grid; gap: 8px; margin-top: 4px; }
+        .choice { text-align: left; font: inherit; padding: 10px 14px; border-radius: 10px; cursor: pointer;
+                  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+        .choice:hover, .choice:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+        .choice small { color: var(--muted); display: block; }
+
+        .notice { border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: .92rem;
+                  background: var(--warn-bg); color: var(--warn); }
+
+        .summary-line { font-size: 1.05rem; margin: 0 0 12px; }
+        .tot { display: grid; grid-template-columns: minmax(120px, 1.2fr) auto 1fr; gap: 6px 12px; align-items: center; font-size: .92rem; }
+        .tot .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+        .tot .lead { color: var(--accent); }
+        .tot .bar { height: 8px; background: var(--bar); border-radius: 4px; min-width: 1px; }
+        .party { color: var(--muted); font-size: .78rem; }
+
+        .stations { display: grid; gap: 8px; }
+        .st { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .9rem; background: var(--bg); }
+        .st .top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .st .areas { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+        mark { background: #fff0a8; color: #1d2330; border-radius: 2px; padding: 0 1px; }
+        .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+        .opt { display: inline-flex; gap: 6px; align-items: center; font-size: .9rem; color: var(--muted); }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <div class="crumbs"><a th:href="@{/}">← All constituencies</a></div>
+        <h1>Voice Search</h1>
+        <div class="meta">Say a constituency, then a street, village or polling station number to hear how it voted.
+            TN Legislative Assembly Election 2026.</div>
+    </header>
+
+    <div class="notice" id="no-voice" hidden>
+        Voice input isn't supported in this browser (try Chrome, Edge or Safari). You can still type below.
+    </div>
+
+    <div class="steps" aria-hidden="true">
+        <span id="step1" class="on">1 · Constituency</span>
+        <span id="step2">2 · Street or polling station</span>
+    </div>
+
+    <!-- chosen constituency (shown in step 2) -->
+    <div class="card chosen" id="chosen" hidden>
+        <div><div class="meta">Constituency</div><b id="chosen-name"></b> <span class="meta" id="chosen-district"></span></div>
+        <button class="btn" id="change" type="button">Change constituency</button>
+    </div>
+
+    <!-- the question + mic -->
+    <section class="card ask" aria-labelledby="prompt">
+        <p class="prompt" id="prompt">Which constituency?</p>
+        <p class="examples" id="examples">For example: “Madurai Central”, “Coimbatore North” or “number 120”</p>
+        <button class="mic" id="mic" type="button" aria-label="Start speaking">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                 stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/>
+                <path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+        </button>
+        <div class="status" id="status" aria-live="polite">Tap the mic and speak</div>
+        <div class="heard" id="heard"></div>
+        <form class="typed" id="typed">
+            <input id="typed-q" type="search" autocomplete="off" aria-label="Or type here" placeholder="…or type here">
+            <button class="btn solid" type="submit">Go</button>
+        </form>
+        <div class="row-actions" style="justify-content:center">
+            <label class="opt"><input type="checkbox" id="speak" checked> Read results aloud</label>
+        </div>
+    </section>
+
+    <!-- constituency choices when the match is not certain -->
+    <section class="card" id="choices-card" hidden>
+        <h2 id="choices-title">Did you mean…</h2>
+        <div class="choices" id="choices"></div>
+    </section>
+
+    <!-- results for a street / polling station -->
+    <section class="card" id="results" hidden>
+        <p class="summary-line" id="summary"></p>
+        <div class="tot" id="totals"></div>
+        <h2 style="margin-top:18px" id="st-title">Polling stations</h2>
+        <div class="stations" id="stations"></div>
+        <div class="row-actions">
+            <a class="btn" id="open-full" href="#">Open in Vote Analysis</a>
+        </div>
+    </section>
+</div>
+
+<script id="ac-data" type="application/json" th:utext="${acData}">[]</script>
+<script th:inline="javascript">
+(function () {
+    const BASE = /*[[@{/}]]*/ '/';
+    const ACS = JSON.parse(document.getElementById('ac-data').textContent);
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+    const fmt = n => n.toLocaleString('en-IN');
+
+    // ---------- fuzzy matching tuned for Tamil place names spelt in English ----------
+    // "Thiruvallur" / "Tiruvallur", "Kancheepuram" / "Kanchipuram" normalise to the same key.
+    function normWord(w) {
+        return w.replace(/([tdbkgpcs])h/g, '$1').replace(/zh/g, 'l').replace(/ee|ii|y/g, 'i')
+                .replace(/oo|uu/g, 'u').replace(/aa/g, 'a').replace(/w/g, 'v').replace(/(.)\1+/g, '$1');
+    }
+    // everyday names people say for places listed under their official names
+    const ALIAS = { trichy: 'tiruchirappalli', tiruchy: 'tiruchirappalli', trichi: 'tiruchirappalli',
+                    kovai: 'coimbatore', nellai: 'tirunelveli', tuticorin: 'thoothukudi', tuty: 'thoothukudi',
+                    conjeevaram: 'kancheepuram', tanjore: 'thanjavur',
+                    tinnevelly: 'tirunelveli', cape: 'kanniyakumari', kanyakumari: 'kanniyakumari', ooty: 'udhagamandalam' };
+    // raw lower-case words, with filler words dropped *before* spelling normalisation
+    function words(s, filler) {
+        return s.toLowerCase().split(/[^a-z0-9]+/).filter(w => w && !(filler && filler.has(w)))
+                .map(w => normWord(ALIAS[w] || w));
+    }
+    function lev(a, b) {
+        if (a === b) return 0;
+        let prev = Array.from({length: b.length + 1}, (_, i) => i);
+        for (let i = 1; i <= a.length; i++) {
+            const cur = [i];
+            for (let j = 1; j <= b.length; j++) {
+                cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            }
+            prev = cur;
+        }
+        return prev[b.length];
+    }
+    function similarity(a, b) {
+        if (!a || !b) return 0;
+        if (a === b) return 1;
+        if (a.length >= 3 && (b.startsWith(a) || b.includes(a))) return 0.9;
+        return 1 - lev(a, b) / Math.max(a.length, b.length);
+    }
+
+    // ---------- speech in / speech out ----------
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { $('no-voice').hidden = false; $('mic').hidden = true; $('status').textContent = 'Type your search below'; }
+    let rec = null;
+
+    function listen() {
+        if (!SR) return;
+        if (rec) { rec.stop(); return; }
+        if (window.speechSynthesis) speechSynthesis.cancel();
+        rec = new SR();
+        rec.lang = 'en-IN';
+        rec.interimResults = true;
+        let finalText = '';
+        rec.onresult = e => {
+            let text = '';
+            for (const r of e.results) text += r[0].transcript;
+            text = text.replace(/[.?!,]+$/, '').trim();
+            $('heard').textContent = '“' + text + '”';
+            if (e.results[e.results.length - 1].isFinal) finalText = text;
+        };
+        rec.onerror = e => {
+            $('status').textContent = e.error === 'not-allowed' || e.error === 'service-not-allowed'
+                ? 'Microphone is blocked. Allow the microphone for this site, or type below.'
+                : e.error === 'no-speech' ? 'Didn’t hear anything. Tap the mic and try again.'
+                : 'Voice input stopped (' + e.error + '). Tap the mic to try again.';
+        };
+        rec.onend = () => {
+            rec = null;
+            $('mic').classList.remove('listening');
+            $('mic').setAttribute('aria-label', 'Start speaking');
+            if (finalText) handle(finalText);
+            else if ($('status').textContent === 'Listening…') $('status').textContent = 'Tap the mic and speak';
+        };
+        $('mic').classList.add('listening');
+        $('mic').setAttribute('aria-label', 'Stop listening');
+        $('status').textContent = 'Listening…';
+        $('heard').textContent = '';
+        rec.start();
+    }
+
+    function say(text) {
+        if (!$('speak').checked || !window.speechSynthesis) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-IN';
+        speechSynthesis.speak(u);
+    }
+
+    // ---------- state ----------
+    let ac = null;          // chosen constituency
+    let data = null;        // its polling-area data
+
+    function handle(text) {
+        $('heard').textContent = '“' + text + '”';
+        $('typed-q').value = '';
+        if (ac && data) searchAreas(text); else if (!ac) findConstituency(text);
+    }
+
+    // ---------- step 1: constituency ----------
+    const FILLER = new Set(['constituency', 'assembly', 'show', 'me', 'results', 'result', 'for', 'of', 'the',
+                            'votes', 'vote', 'open', 'go', 'to', 'please', 'ac', 'number', 'no']);
+
+    function findConstituency(text) {
+        $('results').hidden = true;
+        const num = text.match(/\b(\d{1,3})\b/);
+        if (num) {
+            const hit = ACS.find(c => c.no === +num[1]);
+            if (hit) return choose(hit);
+        }
+        const q = words(text, FILLER).join('');
+        if (!q) { $('status').textContent = 'Please say a constituency name.'; return; }
+
+        const scored = ACS.map(c => {
+            const name = words(c.name.replace(/\((SC|ST)\)/, '')).join('');
+            const dist = words(c.district).join('');
+            return { c, score: Math.max(similarity(q, name), 0.8 * similarity(q, dist)) };
+        }).filter(x => x.score >= 0.6).sort((a, b) => b.score - a.score);
+
+        if (!scored.length) {
+            $('status').textContent = 'No constituency sounds like that. Try again, or say its number.';
+            say('Sorry, I could not find that constituency. Please try again.');
+            $('choices-card').hidden = true;
+            return;
+        }
+        const top = scored[0], second = scored[1];
+        if (top.score >= 0.85 && (!second || second.score < top.score - 0.08)) return choose(top.c);
+
+        $('choices').innerHTML = scored.slice(0, 6).map(x =>
+            '<button class="choice" type="button" data-no="' + x.c.no + '"><b>' + x.c.no + '. ' + esc(x.c.name)
+            + '</b><small>' + esc(x.c.district) + ' district</small></button>').join('');
+        $('choices-title').textContent = 'Did you mean…';
+        $('choices-card').hidden = false;
+        $('status').textContent = 'Pick one below, or tap the mic and say it again.';
+        say('Did you mean ' + scored.slice(0, 3).map(x => x.c.name.replace(/\((SC|ST)\)/, '')).join(', or ') + '?');
+    }
+
+    async function choose(c) {
+        ac = c; data = null;
+        history.replaceState(null, '', '?ac=' + c.no);
+        $('choices-card').hidden = true;
+        $('results').hidden = true;
+        $('chosen').hidden = false;
+        $('chosen-name').textContent = c.no + '. ' + c.name;
+        $('chosen-district').textContent = '· ' + c.district + ' district';
+        $('step1').className = 'done'; $('step2').className = 'on';
+        $('prompt').textContent = 'Which street, village or polling station?';
+        $('examples').textContent = 'For example: “Gandhi Nagar”, “Ward 3” or “polling station 45”';
+        $('status').textContent = 'Loading ' + c.name + ' polling areas… (the first time can take a minute)';
+        $('mic').disabled = true;
+        try {
+            const res = await fetch(BASE + 'voice/areas/' + c.no);
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.error || ('HTTP ' + res.status));
+            if (ac !== c) return;               // user changed constituency meanwhile
+            data = prepare(body);
+            $('status').textContent = 'Ready. Tap the mic and say a street, village or polling station.';
+            say(c.name.replace(/\((SC|ST)\)/, '') + ' selected. Now say a street, village, or polling station number.');
+        } catch (e) {
+            $('status').textContent = 'Could not load this constituency: ' + e.message;
+            say('Sorry, this constituency could not be loaded.');
+        } finally {
+            $('mic').disabled = false;
+        }
+    }
+
+    function reset() {
+        ac = null; data = null;
+        history.replaceState(null, '', location.pathname);
+        $('chosen').hidden = true; $('results').hidden = true; $('choices-card').hidden = true;
+        $('step1').className = 'on'; $('step2').className = '';
+        $('prompt').textContent = 'Which constituency?';
+        $('examples').textContent = 'For example: “Madurai Central”, “Coimbatore North” or “number 120”';
+        $('status').textContent = SR ? 'Tap the mic and speak' : 'Type your search below';
+        $('heard').textContent = '';
+    }
+
+    // ---------- step 2: polling areas ----------
+    function prepare(d) {
+        d.stations.forEach(s => {
+            const ws = words(s.ps + ' ' + s.loc + ' ' + s.areas);
+            s.wordSet = ws;
+            s.spaced = ' ' + ws.join(' ') + ' ';
+        });
+        // candidates shown: everyone except independents, unless that leaves fewer than two
+        d.shown = d.candidates.map((c, i) => i).filter(i => d.candidates[i].abbr !== 'IND');
+        if (d.shown.length < 2) d.shown = d.candidates.map((c, i) => i);
+        return d;
+    }
+
+    const AREA_FILLER = new Set(['show', 'me', 'votes', 'vote', 'in', 'for', 'at', 'of', 'the', 'results', 'result', 'please']);
+
+    function searchAreas(text) {
+        const lower = text.toLowerCase();
+        let hits, label = text, fuzzy = false;
+        const ps = lower.match(/(?:polling\s*station|booth|station|ps)\s*(?:number|no\.?)?\s*(\d+\s*[a-z]?)\b/)
+                || lower.match(/^\s*(?:number\s*)?(\d+\s*[a-z]?)\s*$/);
+        if (ps) {
+            const n = ps[1].replace(/\s+/g, '');
+            hits = data.stations.filter(s => s.ps.toLowerCase() === n);
+            label = 'polling station ' + n;
+        } else {
+            const toks = words(lower, AREA_FILLER);
+            if (!toks.length) { $('status').textContent = 'Please say a street or village name.'; return; }
+            label = text;
+            hits = data.stations.filter(s => toks.every(t => /^\d+$/.test(t) ? s.spaced.includes(' ' + t + ' ') : s.spaced.includes(t)));
+            if (!hits.length) {               // nothing exact: allow small spelling differences per word
+                fuzzy = true;
+                hits = data.stations.filter(s => toks.every(t => /^\d+$/.test(t)
+                    ? s.spaced.includes(' ' + t + ' ')
+                    : s.wordSet.some(w => w.length >= 3 && Math.abs(w.length - t.length) <= 2
+                                          && lev(t, w) <= (t.length >= 7 ? 2 : 1))));
+            }
+            hits.toks = toks;
+        }
+        showResults(hits, label, fuzzy, ps ? [] : hits.toks);
+    }
+
+    function showResults(hits, label, fuzzy, toks) {
+        const cands = data.candidates;
+        $('results').hidden = false;
+        $('open-full').href = BASE + 'constituency/' + ac.no + '/areas?q=' + encodeURIComponent(ps_or_text(label));
+        if (!hits.length) {
+            $('summary').textContent = 'No polling station found for “' + label + '”.';
+            $('totals').innerHTML = ''; $('stations').innerHTML = ''; $('st-title').hidden = true;
+            $('status').textContent = 'Try another name, or say “polling station” and a number.';
+            say('Sorry, I found no polling station for ' + label + '.');
+            return;
+        }
+        $('st-title').hidden = false;
+        const tot = cands.map(() => 0);
+        let valid = 0;
+        hits.forEach(s => { s.v.forEach((n, i) => tot[i] += n); valid += s.valid; });
+        const order = data.shown.slice().sort((a, b) => tot[b] - tot[a]);
+        const max = Math.max(1, tot[order[0]]);
+        const name = i => cands[i].name + (cands[i].abbr ? ' (' + cands[i].abbr + ')' : '');
+        const spoken = i => cands[i].abbr && cands[i].abbr !== 'IND' ? cands[i].abbr.split('').join(' ') : cands[i].name;
+
+        $('summary').innerHTML = (fuzzy ? 'Closest match for ' : '') + '<b>“' + esc(label) + '”</b>: '
+            + hits.length + ' polling station' + (hits.length === 1 ? '' : 's') + ', ' + fmt(valid) + ' valid votes.';
+        $('totals').innerHTML = order.slice(0, 6).map((i, k) =>
+            '<div' + (k === 0 ? ' class="lead"' : '') + '>' + esc(cands[i].name)
+            + (cands[i].party ? '<div class="party">' + esc(cands[i].party) + '</div>' : '') + '</div>'
+            + '<div class="num' + (k === 0 ? ' lead' : '') + '">' + fmt(tot[i])
+            + (valid ? ' <span class="party">' + (100 * tot[i] / valid).toFixed(1) + '%</span>' : '') + '</div>'
+            + '<div><div class="bar" style="width:' + (100 * tot[i] / max).toFixed(1) + '%"></div></div>').join('');
+
+        const shownRows = hits.slice(0, 30);
+        $('stations').innerHTML = shownRows.map(s => {
+            const best = data.shown.slice().sort((a, b) => s.v[b] - s.v[a]);
+            const margin = s.v[best[0]] - s.v[best[1] ?? best[0]];
+            return '<div class="st"><div class="top"><b>Polling station ' + esc(s.ps) + '</b>'
+                + '<span>' + esc(cands[best[0]].abbr || cands[best[0]].name) + ' leads by ' + fmt(margin) + '</span></div>'
+                + (s.loc ? '<div>' + highlight(s.loc, toks) + '</div>' : '')
+                + (s.areas ? '<div class="areas">' + highlight(s.areas.length > 260 ? s.areas.slice(0, 260) + '…' : s.areas, toks) + '</div>' : '')
+                + '</div>';
+        }).join('') + (hits.length > shownRows.length
+            ? '<div class="meta">…and ' + (hits.length - shownRows.length) + ' more. Open in Vote Analysis to see all.</div>' : '');
+
+        $('status').textContent = 'Tap the mic to search another street.';
+        const lead = order[0], next = order[1];
+        say(label + '. ' + hits.length + ' polling station' + (hits.length === 1 ? '' : 's') + '. '
+            + spoken(lead) + ' leads with ' + tot[lead] + ' votes'
+            + (next !== undefined ? ', followed by ' + spoken(next) + ' with ' + tot[next] + '.' : '.'));
+    }
+    function ps_or_text(label) { return label.replace(/^polling station /, ''); }
+
+    function highlight(text, toks) {
+        let html = esc(text);
+        // highlight on the original text: match words whose normalised form equals a spoken token
+        if (!toks || !toks.length) return html;
+        return html.replace(/[A-Za-z]{3,}/g, w => toks.some(t => normWord(w.toLowerCase()).includes(t) && t.length >= 3)
+            ? '<mark>' + w + '</mark>' : w);
+    }
+
+    // ---------- wiring ----------
+    $('mic').addEventListener('click', listen);
+    $('change').addEventListener('click', reset);
+    $('choices').addEventListener('click', e => {
+        const b = e.target.closest('.choice');
+        if (b) choose(ACS.find(c => c.no === +b.dataset.no));
+    });
+    $('typed').addEventListener('submit', e => {
+        e.preventDefault();
+        const t = $('typed-q').value.trim();
+        if (t) handle(t);
+    });
+    $('speak').addEventListener('change', () => { if (!$('speak').checked && window.speechSynthesis) speechSynthesis.cancel(); });
+
+    const start = new URLSearchParams(location.search).get('ac');
+    const preset = start && ACS.find(c => c.no === +start);
+    if (preset) choose(preset);
+})();
+</script>
+</body>
+</html>

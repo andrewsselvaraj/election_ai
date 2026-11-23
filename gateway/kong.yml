@@ -36,7 +36,15 @@ services:
           - name: rate-limiting
             config: { hour: 5, policy: local, limit_by: ip }
 
+# One consumer per client app, each with its own key (and its own /api rate limit).
+# Each ${...} is filled in at container start from a Secret Manager secret (see start.sh).
 consumers:
   - username: default-client
     keyauth_credentials:
       - key: "${KONG_API_KEY}"
+  - username: web-app
+    keyauth_credentials:
+      - key: "${KONG_API_KEY_WEB}"
+  - username: desktop-app
+    keyauth_credentials:
+      - key: "${KONG_API_KEY_DESKTOP}"

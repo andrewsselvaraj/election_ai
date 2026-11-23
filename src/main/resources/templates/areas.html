@@ -36,6 +36,8 @@
         .search input, .search select { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
                                          background: var(--bg); color: var(--text); }
         .search input { width: 100%; font-size: 1.05rem; }
+        .q-row { display: flex; gap: 8px; align-items: center; }
+        .q-row input { flex: 1; min-width: 0; }
         .search .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; font-size: .9rem; }
         .picker { position: relative; max-width: 100%; }
         .picker summary { cursor: pointer; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
@@ -107,8 +109,10 @@
 
         <div class="search">
             <label for="q">Voting details by street, village, ward or polling station</label>
-            <input id="q" type="search" autocomplete="off" th:value="${q}"
-                   placeholder="e.g. Arambakkam, Gandhi Nagar, Ward 3 – or a polling station number like 45">
+            <div class="q-row">
+                <input id="q" type="search" autocomplete="off" th:value="${q}" data-voice
+                       placeholder="e.g. Arambakkam, Gandhi Nagar, Ward 3 – or a polling station number like 45">
+            </div>
             <div class="row">
                 <span>Show votes for</span>
                 <details class="picker" id="picker">
@@ -462,5 +466,6 @@
     if (!q.value) q.focus();
 })();
 </script>
+<script th:src="@{/js/voice-search.js}" defer></script>
 </body>
 </html>

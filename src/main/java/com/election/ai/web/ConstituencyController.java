@@ -123,6 +123,33 @@ public class ConstituencyController {
         return "areas";
     }
 
+    /** Voice search page: say a constituency, then a street, village or polling station. */
+    @GetMapping("/voice")
+    public String voice(Model model) {
+        List<Map<String, Object>> list = new java.util.ArrayList<>();
+        for (Constituency c : service.snapshot().constituencies()) {
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("no", c.number());
+            m.put("name", c.displayName());
+            m.put("district", c.districtName());
+            list.add(m);
+        }
+        // read by the page's script; "</" is escaped so text cannot close the script tag
+        model.addAttribute("acData", json.writeValueAsString(list).replace("</", "<\\/"));
+        return "voice";
+    }
+
+    /**
+     * Polling-area data for the voice page, fetched once a constituency is chosen. Outside /api
+     * on purpose: it is the same data the public polling-area page already embeds.
+     */
+    @GetMapping("/voice/areas/{ac}")
+    @ResponseBody
+    public Map<String, Object> voiceAreas(@PathVariable int ac) throws IOException {
+        service.find(ac).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return areaData(areas.result(ac, false));
+    }
+
     /** Compact data for the polling-area search page. */
     private static Map<String, Object> areaData(PollingAreaResult a) {
         List<Map<String, Object>> candidates = new java.util.ArrayList<>();
